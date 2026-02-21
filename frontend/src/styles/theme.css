@@ -1,0 +1,90 @@
+/* Simple CSS Variables for Light and Dark Theme */
+
+:root {
+  /* Light Theme (Default) */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f5;
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --border-color: #e0e0e0;
+  --input-bg: #ffffff;
+  --input-border: #e0e0e0;
+  --btn-bg: #007bff;
+  --btn-text: #ffffff;
+  --btn-hover: #0056b3;
+  --link-color: #007bff;
+  
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+  --spacing-2xl: 24px;
+}
+
+/* System Dark Theme - Auto-detect based on OS preference */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #1a1a1a;
+    --bg-secondary: #2d2d2d;
+    --text-primary: #ffffff;
+    --text-secondary: #b0b0b0;
+    --border-color: #404040;
+    --input-bg: #2d2d2d;
+    --input-border: #404040;
+    --btn-bg: #0056b3;
+    --btn-text: #ffffff;
+    --btn-hover: #003d82;
+    --link-color: #6ba3ff;
+  }
+}
+
+/* Manual Dark Theme Override */
+[data-theme="dark"] {
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --text-primary: #ffffff;
+  --text-secondary: #b0b0b0;
+  --border-color: #404040;
+  --input-bg: #2d2d2d;
+  --input-border: #404040;
+  --btn-bg: #0056b3;
+  --btn-text: #ffffff;
+  --btn-hover: #003d82;
+  --link-color: #6ba3ff;
+}
+
+/* Manual Light Theme Override */
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f5;
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --border-color: #e0e0e0;
+  --input-bg: #ffffff;
+  --input-border: #e0e0e0;
+  --btn-bg: #007bff;
+  --btn-text: #ffffff;
+  --btn-hover: #0056b3;
+  --link-color: #007bff;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+

@@ -1,0 +1,33 @@
+/* Theme Toggle Button */
+.theme-toggle {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  padding: 8px 12px;
+  background-color: var(--btn-bg);
+  color: var(--btn-text);
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 1000;
+}
+
+.theme-toggle:hover {
+  background-color: var(--btn-hover);
+}
+
+.theme-toggle:active {
+  transform: scale(0.95);
+}
+
+@media (max-width: 480px) {
+  .theme-toggle {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+    top: 12px;
+    right: 12px;
+  }
+}

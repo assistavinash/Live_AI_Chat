@@ -1,0 +1,46 @@
+/* SYSTEM THEME GUIDE */
+
+THEME SYSTEM:
+The app now automatically follows your system theme preference!
+
+HOW IT WORKS:
+1. App detects your OS theme (Light or Dark)
+2. Uses matching theme automatically
+3. Listens for OS theme changes in real-time
+4. Theme toggle button allows manual override if needed
+
+LIGHT THEME:
+- Background: White
+- Text: Dark Gray/Black
+- Button: Blue (#007bff)
+- Border: Light Gray
+
+DARK THEME:
+- Background: Dark Gray (#1a1a1a)
+- Text: White
+- Button: Dark Blue (#0056b3)
+- Border: Medium Gray
+
+THEME TOGGLE BUTTON:
+- Located in top-right corner
+- Click to manually override system preference
+- Manual override is saved locally
+- Click again to return to system preference
+
+FILES:
+- src/styles/theme.css - CSS variables + media query for system detection
+- src/styles/auth.css - Mobile-first responsive styles
+- src/components/ThemeToggle.jsx - Theme switcher component (7 lines of code)
+- src/utils/themeUtils.js - Theme utility functions
+
+SYSTEM DETECTION:
+The app uses CSS media query `prefers-color-scheme: dark` to detect your system theme
+JavaScript listens to changes and updates theme in real-time
+
+TO CHANGE THEME IN WINDOWS 11/10:
+Settings → Personalization → Colors → Choose your mode (Light or Dark)
+
+TO CHANGE THEME IN MAC:
+System Preferences → General → Appearance
+
+No manual setup needed - it just works automatically!

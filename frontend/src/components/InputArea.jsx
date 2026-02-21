@@ -1,0 +1,75 @@
+import React, { useRef, useEffect } from 'react';
+import './ChatInput.css';
+
+export default function ChatInput({
+  input,
+  setInput,
+  onSendMessage,
+  loading
+}) {
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px';
+    }
+  }, [input]);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      onSendMessage(e);
+    }
+  };
+
+  return (
+    <div className="input-area">
+      <div className="input-container">
+        <form onSubmit={onSendMessage} className="input-form">
+          <div className="input-wrapper">
+            <button 
+              type="button" 
+              className="input-icon-btn"
+              aria-label="Add attachment"
+              disabled={loading}
+            >
+              <i className="fas fa-plus"></i>
+            </button>
+            
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask anything"
+              className="input-field"
+              disabled={loading}
+              rows="1"
+            />
+            
+            <div className="input-actions">
+              <button 
+                type="button" 
+                className="input-icon-btn"
+                aria-label="Voice input"
+                disabled={loading}
+              >
+                <i className="fas fa-microphone"></i>
+              </button>
+              <button 
+                type="submit"
+                className="send-btn"
+                disabled={loading || !input.trim()}
+                aria-label="Send message"
+              >
+                <i className="fas fa-arrow-up"></i>
+              </button>
+            </div>
+          </div>
+        </form>
+        <p className="input-footer">ChatGPT can make mistakes. Check important info.</p>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,188 @@
+/* Register Page Styles */
+
+.register-container {
+  background: var(--bg-primary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  padding: 24px 16px;
+  width: 100%;
+  max-width: 400px;
+  animation: slideUp 0.3s ease-out;
+  margin: auto;
+}
+
+.register-container h1 {
+  color: var(--text-primary);
+  text-align: center;
+  margin-bottom: 8px;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.register-container > p:first-of-type {
+  text-align: center;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+}
+
+/* Form Styles */
+.register-container form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.register-container .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.register-container .form-group label {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.register-container .form-group input {
+  padding: 10px 12px;
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--input-text);
+  background-color: var(--input-bg);
+  transition: all 0.2s ease;
+}
+
+.register-container .form-group input::placeholder {
+  color: var(--text-secondary);
+}
+
+.register-container .form-group input:focus {
+  outline: none;
+  border-color: var(--btn-bg);
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+}
+
+/* Two-column layout for name fields */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-row .form-group {
+  width: 100%;
+  min-width: 0;
+}
+
+.form-row .form-group input {
+  width: 100%;
+  display: block;
+}
+
+/* Button Styles */
+.register-container button {
+  width: 100%;
+  padding: 12px 16px;
+  background-color: var(--btn-bg);
+  color: var(--btn-text);
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 8px;
+}
+
+.register-container button:hover {
+  background-color: var(--btn-hover);
+}
+
+.register-container button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Links */
+.register-container p:last-child {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-top: 16px;
+}
+
+.register-container a {
+  color: var(--link-color);
+  text-decoration: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.register-container a:hover {
+  text-decoration: underline;
+}
+
+/* Animations */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive */
+@media (min-width: 640px) {
+  .register-container {
+    padding: 32px 24px;
+  }
+
+  .register-container h1 {
+    font-size: 1.75rem;
+  }
+
+  .register-container form {
+    gap: 16px;
+  }
+
+  .register-container .form-group {
+    gap: 8px;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .register-container h1 {
+    font-size: 1.25rem;
+  }
+
+  .register-container .form-group input {
+    padding: 12px;
+    font-size: 16px;
+  }
+
+  .register-container button {
+    padding: 12px;
+    font-size: 1rem;
+  }
+
+  .register-container {
+    padding: 20px 12px;
+    margin: auto;
+  }
+}
