@@ -1,18 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSelector } from 'react-redux';
 import './Sidebar.css';
 
 export default function Sidebar({ onNewChat, onSelectChat, onDeleteChat, previous, onLogout }) {
   const [isOpen, setIsOpen] = useState(true);
-  const [activeChatId, setActiveChatId] = useState(null);
+  const { currentChatId } = useSelector(state => state.chat);
   const [hoverChatId, setHoverChatId] = useState(null);
+  const [userName, setUserName] = useState('User');
+  const [userInitials, setUserInitials] = useState('U');
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const user = JSON.parse(storedUser);
+        if (user.fullName) {
+          const fullName = `${user.fullName.firstName} ${user.fullName.lastName}`;
+          setUserName(fullName);
+          const initials = `${user.fullName.firstName[0]}${user.fullName.lastName[0]}`.toUpperCase();
+          setUserInitials(initials);
+        } else if (user.email) {
+          setUserName(user.email);
+          setUserInitials(user.email[0].toUpperCase());
+        }
+      } catch (error) {
+        setUserName('User');
+        setUserInitials('U');
+      }
+    }
+  }, []);
 
   const handleSelectChat = (chatId) => {
-    setActiveChatId(chatId);
     onSelectChat(chatId);
   };
 
   const handleNewChat = () => {
-    setActiveChatId(null);
     onNewChat();
   };
 
@@ -54,12 +76,12 @@ export default function Sidebar({ onNewChat, onSelectChat, onDeleteChat, previou
             {previous.map((chat) => (
               <div
                 key={chat.id}
-                className={`chat-item-wrapper ${activeChatId === chat.id ? 'active' : ''}`}
+                className={`chat-item-wrapper ${currentChatId === chat.id ? 'active' : ''}`}
                 onMouseEnter={() => setHoverChatId(chat.id)}
                 onMouseLeave={() => setHoverChatId(null)}
               >
                 <button
-                  className={`chat-item ${activeChatId === chat.id ? 'active' : ''}`}
+                  className={`chat-item ${currentChatId === chat.id ? 'active' : ''}`}
                   onClick={() => handleSelectChat(chat.id)}
                 >
                   <span className="chat-title">{chat.title}</span>
@@ -83,9 +105,9 @@ export default function Sidebar({ onNewChat, onSelectChat, onDeleteChat, previou
         {/* User Profile Section */}
         <div className="user-profile">
           <div className="profile-item">
-            <div className="avatar">AK</div>
+            <div className="avatar">{userInitials}</div>
             <div className="profile-info">
-              <p className="profile-name">Avinash Kumar</p>
+              <p className="profile-name">{userName}</p>
               <p className="profile-plan">Plus</p>
             </div>
             <button className="logout-btn" onClick={onLogout} title="Logout">

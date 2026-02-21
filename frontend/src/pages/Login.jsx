@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import '../styles/global.css';
@@ -13,6 +13,13 @@ export default function Login() {
 
   const navigate = useNavigate();
 
+  useEffect(() => {
+    // If user is already logged in, redirect to home
+    if (localStorage.getItem('isLoggedIn') === 'true') {
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
+
   async function handleSubmit(e){
     e.preventDefault();
     setLoading(true);
@@ -21,8 +28,6 @@ export default function Login() {
     const trimmedEmail = email.trim().toLowerCase();
     const trimmedPassword = password.trim();
     
-    // Log the login data
-    console.log('Login Data:', { email: trimmedEmail, passwordLength: trimmedPassword.length });
     
     try {
       const res = await axios.post(
@@ -35,7 +40,7 @@ export default function Login() {
           withCredentials: true
         }
       );
-      console.log('Login Success:', res);
+
       
       // Store login status
       localStorage.setItem('isLoggedIn', 'true');

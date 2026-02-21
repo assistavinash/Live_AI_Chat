@@ -5,6 +5,7 @@ export default function ChatInput({
   input,
   setInput,
   onSendMessage,
+  onStopMessage,
   loading
 }) {
   const textareaRef = useRef(null);
@@ -57,14 +58,27 @@ export default function ChatInput({
               >
                 <i className="fas fa-microphone"></i>
               </button>
-              <button 
-                type="submit"
-                className="send-btn"
-                disabled={loading || !input.trim()}
-                aria-label="Send message"
-              >
-                <i className="fas fa-arrow-up"></i>
-              </button>
+              
+              {loading ? (
+                <button 
+                  type="button"
+                  className="stop-btn"
+                  onClick={onStopMessage}
+                  aria-label="Stop message"
+                  title="Stop AI response"
+                >
+                  <i className="fa-solid fa-square"></i>
+                </button>
+              ) : (
+                <button 
+                  type="submit"
+                  className="send-btn"
+                  disabled={!input.trim()}
+                  aria-label="Send message"
+                >
+                  <i className="fas fa-arrow-up"></i>
+                </button>
+              )}
             </div>
           </div>
         </form>

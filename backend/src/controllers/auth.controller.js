@@ -48,8 +48,15 @@ async function loginUser(req, res) {
         return res.status(400).json({ message: 'Invalid email or password' });
     }
 
-    const token = jwt.sign({id: user._id}, process.env.JWT_SECRET);
-    res.cookie("token", token);
+    const token = jwt.sign({id: user._id}, process.env.JWT_SECRET, { expiresIn: '1h' });
+    
+    // Set secure cookie with proper options
+    res.cookie("token", token, {
+        httpOnly: true,        // Prevent JS access (only HTTP/HTTPS)
+        secure: false,         // Set to true in production with HTTPS
+        sameSite: 'Lax',       // CSRF protection
+        maxAge: 3600000        // 1 hour in milliseconds
+    });
 
     res.status(200).json({ message: 'User logged in successfully', user:{
         email: user.email,
@@ -57,7 +64,21 @@ async function loginUser(req, res) {
         fullName: user.fullName
     } });
 }
+
+async function logoutUser(req, res) {
+    // Clear the authentication token cookie using the same options as login
+    res.clearCookie('token', {
+        httpOnly: true,
+        secure: false,         // Set to true in production with HTTPS
+        sameSite: 'Lax',
+        path: '/'              // Ensure cookie is cleared from root path
+    });
+    
+    res.status(200).json({ message: 'User logged out successfully' });
+}
+
 module.exports = {
     registerUser,
-    loginUser
+    loginUser,
+    logoutUser
 };

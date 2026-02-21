@@ -7,7 +7,12 @@ const messageModel = require("../models/message.model");
 const { createMemory, queryMemory } = require("../services/vector.service");
 
 function initSocketServer(httpServer) {
-  const io = new Server(httpServer, {});
+  const io = new Server(httpServer, {
+    cors: {
+      origin: "http://localhost:5173",
+      credentials: true
+    }
+  });
 
   io.use(async (socket, next) => {
     const cookies = cookie.parse(socket.handshake.headers?.cookie || "");
@@ -26,16 +31,27 @@ function initSocketServer(httpServer) {
   });
 
   io.on("connection", (socket) => {
-    socket.on("ai-message", async (messagePayLoad) => {
-    
-      const message = await messageModel.create({
-        chat: messagePayLoad.chat,
-        user: socket.user._id,
-        content: messagePayLoad.content,
-        role: "user",
-      });
+    console.log("User connected:", socket.user.email);
 
-      const vectors = await aiService.generateVector(messagePayLoad.content); 
+    socket.on("ai-message", async (messagePayLoad) => {
+      try {
+        // Validate that chat ID is provided
+        if (!messagePayLoad.chat) {
+          console.error("No chat ID provided");
+          socket.emit("error", { message: "Chat ID is required to send a message" });
+          return;
+        }
+      
+        console.log("Received message for chat:", messagePayLoad.chat);
+
+        const message = await messageModel.create({
+          chat: messagePayLoad.chat,
+          user: socket.user._id,
+          content: messagePayLoad.content,
+          role: "user",
+        });
+
+        const vectors = await aiService.generateVector(messagePayLoad.content); 
 
 
 
@@ -127,6 +143,16 @@ function initSocketServer(httpServer) {
         content: response,
         chat: messagePayLoad.chat,
       });
+
+      console.log("AI response sent for chat:", messagePayLoad.chat);
+      } catch (error) {
+        console.error("Socket error:", error);
+        socket.emit("error", { message: error.message });
+      }
+    });
+
+    socket.on("disconnect", () => {
+      console.log("User disconnected:", socket.user?.email);
     });
   });
 

@@ -12,6 +12,7 @@ const AppRoutes = () => {
         <div className="routes-wrapper">
           <Routes>
             <Route path='/' element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route path='/chat/:chatId' element={<ProtectedRoute><Home /></ProtectedRoute>} />
             <Route path='/register' element={<Register />} />
             <Route path='/login' element={<Login />} />
           </Routes>

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import './MessagesList.css';
 
-export default function MessagesList({ messages, loading }) {
+export default function MessagesList({ messages, loading, currentChatId }) {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -11,11 +11,19 @@ export default function MessagesList({ messages, loading }) {
   return (
     <div className="messages-container">
       <div className="messages-content">
-        {messages.length === 0 ? (
+        {!currentChatId ? (
+          // Show welcome screen only when no chat is selected
           <div className="empty-state">
             <div className="empty-icon">✨</div>
             <h2>Hi 👋</h2>
             <p>Ask anything, and I'll help</p>
+          </div>
+        ) : messages.length === 0 ? (
+          // Show empty state for selected chat with no messages yet
+          <div className="empty-state">
+            <div className="empty-icon">✨</div>
+            <h2>Start a conversation</h2>
+            <p>Type a message to get started</p>
           </div>
         ) : (
           <>

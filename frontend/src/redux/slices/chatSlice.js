@@ -2,26 +2,7 @@ import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
   chats: [
-    { 
-      id: 1, 
-      title: 'Greetings and Small Talk',
-      messages: []
-    },
-    { 
-      id: 2, 
-      title: 'React Register Component F...',
-      messages: []
-    },
-    { 
-      id: 3, 
-      title: 'System instruction for Aurora',
-      messages: []
-    },
-    { 
-      id: 4, 
-      title: 'Google GenAI Error Fix',
-      messages: []
-    }
+
   ],
   currentChatId: null,
   messages: [], // Current chat messages
@@ -34,23 +15,32 @@ const chatSlice = createSlice({
   reducers: {
     // Create a new chat
     createNewChat: (state, action) => {
-      const newChatId = Math.max(...state.chats.map(c => c.id || 0), 0) + 1;
+      const { title, _id } = action.payload;
+      // Use backend _id if available, otherwise generate a local numeric id
+      const chatId = _id || (Math.max(...state.chats.map(c => c.id || 0), 0) + 1);
+      
       const newChat = {
-        id: newChatId,
-        title: action.payload.title || 'New Chat',
+        id: chatId,
+        _id: _id, // Store MongoDB ObjectId if available
+        title: title || 'New Chat',
         messages: []
       };
+      // Add new chat at the top of the list
       state.chats.unshift(newChat);
-      state.currentChatId = newChatId;
-      state.messages = [];
+      // Don't automatically switch to new chat - user must manually select it
     },
 
     // Select an existing chat
     selectChat: (state, action) => {
       const chatId = action.payload;
       state.currentChatId = chatId;
-      const selectedChat = state.chats.find(chat => chat.id === chatId);
-      state.messages = selectedChat ? selectedChat.messages : [];
+      // Find chat by either id or _id
+      const selectedChat = state.chats.find(chat => chat.id === chatId || chat._id === chatId);
+      state.messages = selectedChat ? (selectedChat.messages || []) : [];
+    },
+
+    setChats: (state, action) => {
+      state.chats = action.payload;
     },
 
     // Add message to current chat
@@ -102,10 +92,26 @@ const chatSlice = createSlice({
       state.messages = [];
     },
 
+    // Load messages for a chat (for existing chats when selecting them)
+    loadMessages: (state, action) => {
+      const { messages } = action.payload;
+      state.messages = messages;
+    },
+
     // Set loading state
     setLoading: (state, action) => {
       state.loading = action.payload;
+    },
+
+    // Reset entire auth state (on logout)
+    resetAuthState: (state) => {
+      state.chats = [];
+      state.currentChatId = null;
+      state.messages = [];
+      state.loading = false;
     }
+
+
   }
 });
 
@@ -116,7 +122,10 @@ export const {
   updateChatTitle,
   deleteChat,
   clearCurrentChat,
-  setLoading
+  setChats,
+  setLoading,
+  loadMessages,
+  resetAuthState
 } = chatSlice.actions;
 
 export default chatSlice.reducer;
