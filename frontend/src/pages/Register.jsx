@@ -42,11 +42,6 @@ export default function Register() {
       email: formData.email.trim().toLowerCase(),
       password: formData.password.trim()
     };
-
-    console.log('Register attempt - Sending data:', {
-      ...trimmedData,
-      password: trimmedData.password.length + ' characters'
-    });
     
     try {
       const res = await axios.post(
@@ -63,8 +58,6 @@ export default function Register() {
           withCredentials: true
         }
       );
-      
-      console.log('Registration Success:', res);
       
       // Store login status
       localStorage.setItem('isLoggedIn', 'true');

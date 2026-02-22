@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
-import './Sidebar.css';
+import '../styles/Sidebar.css';
 
 export default function Sidebar({ onNewChat, onSelectChat, onDeleteChat, previous, onLogout }) {
   const [isOpen, setIsOpen] = useState(true);
@@ -84,7 +84,7 @@ export default function Sidebar({ onNewChat, onSelectChat, onDeleteChat, previou
                   className={`chat-item ${currentChatId === chat.id ? 'active' : ''}`}
                   onClick={() => handleSelectChat(chat.id)}
                 >
-                  <span className="chat-title">{chat.title}</span>
+                  <span className="chat-title">{chat.title || '💬 New chat'}</span>
                 </button>
                 {hoverChatId === chat.id && (
                   <button

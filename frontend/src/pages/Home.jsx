@@ -10,18 +10,18 @@ import {
   deleteChat,
   setLoading,
   loadMessages,
-  resetAuthState
+  resetAuthState,
+  addSystemMessage,
+  removeLastUserMessage,
+  updateChatTitle
 } from '../redux/slices/chatSlice';
 
 import Sidebar from '../components/Sidebar';
 import ChatHeader from '../components/ChatHeader';
 import MessagesList from '../components/MessagesList';
 import InputArea from '../components/InputArea';
-import NewChatModal from '../components/NewChatModal';
-
-import axios from 'axios';
+import { axiosInstance } from '../utils/axiosConfig';
 import { io } from 'socket.io-client';
-import { setupAxiosInterceptor } from '../utils/axiosConfig';
 
 import '../styles/global.css';
 import '../styles/theme.css';
@@ -33,11 +33,29 @@ export default function Home() {
   const dispatch = useDispatch();
 
   const [input, setInput] = useState('');
-  const [showNewChatModal, setShowNewChatModal] = useState(false);
 
   const socketRef = useRef(null);
 
   const { messages, chats, currentChatId, loading } = useSelector(state => state.chat);
+
+  /* ---------------- FETCH CHATS FROM BACKEND ---------------- */
+
+  const fetchChats = async () => {
+    try {
+      const res = await axiosInstance.get('/api/chat');
+
+      if (res.data?.chats) {
+        const transformed = res.data.chats.map(chat => ({
+          ...chat,
+          id: chat._id,
+          messages: []
+        }));
+        dispatch(setChats(transformed));
+      }
+    } catch (err) {
+      console.error('Error fetching chats:', err);
+    }
+  };
 
   /* ---------------- SOCKET SETUP ---------------- */
 
@@ -65,9 +83,40 @@ export default function Home() {
       dispatch(setLoading(false));
     });
 
+    // Limit reached listener
+    socket.on('limit-reached', (data) => {
+      // Remove the last user message that triggered the limit
+      dispatch(addSystemMessage({
+        text: data.message,
+        type: 'limit',
+        title: data.title,
+        data: {
+          formattedTime: data.formattedTime,
+          nextResetTime: data.nextResetTime
+        }
+      }));
+      dispatch(setLoading(false));
+    });
+
+    // Rate limit listener (API busy)
+    socket.on('rate-limit', (data) => {
+      // Remove the last user message that was rolled back by the backend
+      dispatch(removeLastUserMessage());
+      
+      dispatch(addSystemMessage({
+        text: data.message,
+        type: 'rate-limit',
+        title: 'API Temporarily Busy',
+        data: {}
+      }));
+      dispatch(setLoading(false));
+    });
+
     // Cleanup: remove listener on unmount
     return () => {
       socket.off('ai-response');
+      socket.off('limit-reached');
+      socket.off('rate-limit');
     };
   }, [dispatch]);
 
@@ -82,27 +131,8 @@ export default function Home() {
   /* ---------------- LOAD CHATS (ON LOGIN) ---------------- */
 
   useEffect(() => {
-    const fetchChats = async () => {
-      try {
-        const res = await axios.get('http://localhost:3000/api/chat', {
-          withCredentials: true
-        });
-
-        if (res.data?.chats) {
-          const transformed = res.data.chats.map(chat => ({
-            ...chat,
-            id: chat._id,
-            messages: []
-          }));
-          dispatch(setChats(transformed));
-        }
-      } catch (err) {
-        console.error('Error fetching chats:', err);
-      }
-    };
-
     fetchChats();
-  }, [dispatch]);
+  }, []);
 
   /* ---------------- URL DRIVEN CHAT LOAD ---------------- */
 
@@ -119,9 +149,8 @@ export default function Home() {
 
     const fetchMessages = async () => {
       try {
-        const res = await axios.get(
-          `http://localhost:3000/api/chat/${currentChatId}/messages`,
-          { withCredentials: true }
+        const res = await axiosInstance.get(
+          `/api/chat/${currentChatId}/messages`
         );
 
         const formatted = res.data.messages.map(msg => ({
@@ -140,13 +169,113 @@ export default function Home() {
     fetchMessages();
   }, [currentChatId, dispatch]);
 
+  /* ---------------- GENERATE TITLE FROM MESSAGE ---------------- */
+
+  const generateTitleFromMessage = (message) => {
+    // Take first 50 characters and capitalize first letter
+    let title = message.trim().substring(0, 50);
+    
+    // Remove markdown and special characters
+    title = title.replace(/[#*_`\[\]()]/g, '');
+    
+    // Capitalize first letter
+    title = title.charAt(0).toUpperCase() + title.slice(1);
+    
+    // Add ellipsis if truncated
+    if (message.length > 50) {
+      title += '...';
+    }
+    
+    return title;
+  };
+
+  /* ---------------- UPDATE CHAT TITLE IN BACKEND ---------------- */
+
+  const updateChatTitleInBackend = async (chatId, title) => {
+    try {
+      const res = await axiosInstance.put(
+        `/api/chat/${chatId}/title`,
+        { title }
+      );
+      return res.data.chat;
+    } catch (err) {
+      console.error('Error updating chat title:', err);
+      return null;
+    }
+  };
+
+  /* ---------------- CHECK FOR EMPTY CHATS ---------------- */
+
+  const getEmptyChat = async () => {
+    try {
+      const res = await axiosInstance.get('/api/chat/empty-chat');
+      return res.data.emptyChat;
+    } catch (err) {
+      console.error('Error fetching empty chat:', err);
+      return null;
+    }
+  };
+
+  /* ---------------- CREATE AND SELECT CHAT (REUSABLE) ---------------- */
+
+  const createAndSelectChat = async () => {
+    try {
+      // Check if an empty chat already exists
+      const emptyChat = await getEmptyChat();
+      
+      if (emptyChat) {
+        dispatch(selectChat(emptyChat._id));
+        navigate(`/chat/${emptyChat._id}`);
+        return emptyChat._id;
+      }
+
+      // No empty chat exists, create a new one without title
+      const res = await axiosInstance.post(
+        '/api/chat',
+        { title: null }
+      );
+
+      const newChatId = res.data.chat._id;
+
+      dispatch(createNewChat({
+        _id: newChatId,
+        id: newChatId,
+        title: null,
+        messages: []
+      }));
+
+      dispatch(selectChat(newChatId));
+      navigate(`/chat/${newChatId}`);
+      
+      // Refresh chats list to ensure latest chat appears at top
+      await fetchChats();
+      
+      return newChatId;
+    } catch (err) {
+      console.error('Error creating chat:', err);
+      return null;
+    }
+  };
+
   /* ---------------- SEND MESSAGE ---------------- */
 
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!input.trim() || !currentChatId) {
-      console.warn('Cannot send message:', { hasInput: !!input.trim(), hasChatId: !!currentChatId });
+    if (!input.trim()) {
+      console.warn('Cannot send empty message');
       return;
+    }
+
+    // If no chat is selected, create one automatically
+    let activeChatId = currentChatId;
+    if (!activeChatId) {
+      activeChatId = await createAndSelectChat();
+      
+      if (!activeChatId) {
+        console.error('Failed to create chat');
+        alert('Failed to create chat. Please try again.');
+        return;
+      }
     }
 
     if (!socketRef.current) {
@@ -161,12 +290,30 @@ export default function Home() {
       return;
     }
 
+    const messageContent = input.trim();
+    const isFirstMessage = messages.length === 0;
 
-    dispatch(addMessage({ text: input, sender: 'user' }));
+    dispatch(addMessage({ text: messageContent, sender: 'user' }));
+
+    // If this is the first message, generate and update chat title
+    if (isFirstMessage) {
+      const generatedTitle = generateTitleFromMessage(messageContent);
+      
+      // Update title in backend
+      const updatedChat = await updateChatTitleInBackend(activeChatId, generatedTitle);
+      
+      if (updatedChat) {
+        // Update Redux state with new title
+        dispatch(updateChatTitle({ chatId: activeChatId, title: generatedTitle }));
+        
+        // Refresh chats list to show updated title in sidebar
+        await fetchChats();
+      }
+    }
 
     socketRef.current.emit('ai-message', {
-      chat: currentChatId,
-      content: input.trim()
+      chat: activeChatId,
+      content: messageContent
     });
 
     dispatch(setLoading(true));
@@ -184,34 +331,7 @@ export default function Home() {
     }
   };
 
-  /* ---------------- NEW CHAT ---------------- */
 
-  const handleConfirmNewChat = async (title) => {
-    try {
-      const res = await axios.post(
-        'http://localhost:3000/api/chat',
-        { title },
-        { withCredentials: true }
-      );
-
-      const newChatId = res.data.chat._id;
-
-      dispatch(createNewChat({
-        _id: newChatId,
-        id: newChatId,
-        title,
-        messages: []
-      }));
-
-      dispatch(selectChat(newChatId));
-      navigate(`/chat/${newChatId}`);
-
-    } catch (err) {
-      console.error('Error creating chat:', err);
-    }
-
-    setShowNewChatModal(false);
-  };
 
   /* ---------------- SELECT CHAT ---------------- */
 
@@ -237,9 +357,7 @@ export default function Home() {
 
   const handleLogout = async () => {
     try {
-      await axios.post('http://localhost:3000/api/auth/logout', {}, {
-        withCredentials: true
-      });
+      await axiosInstance.post('/api/auth/logout', {});
     } catch (err) {
       console.error(err);
     }
@@ -255,29 +373,17 @@ export default function Home() {
     localStorage.clear();
     sessionStorage.clear();
 
-    delete axios.defaults.headers.common["Authorization"];
+    // No need to manually clear headers - axiosInstance interceptor handles cleanup
 
     navigate('/login', { replace: true });
   };
-
-  /* ---------------- AXIOS INTERCEPTOR ---------------- */
-
-  useEffect(() => {
-    setupAxiosInterceptor(navigate, dispatch);
-  }, [navigate, dispatch]);
 
   /* ---------------- UI ---------------- */
 
   return (
     <div className="home-container">
-      <NewChatModal
-        isOpen={showNewChatModal}
-        onConfirm={handleConfirmNewChat}
-        onCancel={() => setShowNewChatModal(false)}
-      />
-
       <Sidebar
-        onNewChat={() => setShowNewChatModal(true)}
+        onNewChat={() => createAndSelectChat()}
         onSelectChat={handleSelectChat}
         onDeleteChat={handleDeleteChat}
         previous={chats}

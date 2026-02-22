@@ -20,7 +20,6 @@ export default function ProtectedRoute({ children }) {
 
   if (!isLoggedIn) {
     // Redirect to login if not logged in
-    console.log('Access denied - user not authenticated. Redirecting to /login');
     return <Navigate to="/login" replace />;
   }
 

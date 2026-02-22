@@ -5,6 +5,11 @@ const userModel = require("../models/user.model");
 const aiService = require("../services/ai.service");
 const messageModel = require("../models/message.model");
 const { createMemory, queryMemory } = require("../services/vector.service");
+const {
+  checkAndResetDailyLimit,
+  incrementMessageCount,
+  getResetMessage
+} = require("../utils/messageLimitUtils");
 
 function initSocketServer(httpServer) {
   const io = new Server(httpServer, {
@@ -31,128 +36,77 @@ function initSocketServer(httpServer) {
   });
 
   io.on("connection", (socket) => {
-    console.log("User connected:", socket.user.email);
 
     socket.on("ai-message", async (messagePayLoad) => {
+      let userMessageId = null;
+
       try {
         // Validate that chat ID is provided
         if (!messagePayLoad.chat) {
-          console.error("No chat ID provided");
-          socket.emit("error", { message: "Chat ID is required to send a message" });
-          return;
-        }
-      
-        console.log("Received message for chat:", messagePayLoad.chat);
+      socket.emit("error", { message: "Chat ID is required" });
+      return;
+    }
 
-        const message = await messageModel.create({
-          chat: messagePayLoad.chat,
-          user: socket.user._id,
-          content: messagePayLoad.content,
-          role: "user",
-        });
+    const limitCheck = await checkAndResetDailyLimit(socket.user);
+    if (limitCheck.isLimitReached) {
+      const resetMessage = getResetMessage(limitCheck.timeUntilReset);
+      socket.emit("limit-reached", resetMessage);
+      return;
+    }
 
-        const vectors = await aiService.generateVector(messagePayLoad.content); 
-
-
-
-
-      /*
-      const memory = await queryMemory({
-        queryVector: vectors,
-        limit: 3,
-        metadata: {},
-      });
-
-      const chatHistory = (
-        await messageModel
-          .find({ chat: messagePayLoad.chat })
-          .sort({ createdAt: -1 })
-          .limit(20)
-          .lean()
-      ).reverse(); */
-
-      const [memory, chatHistory] = await Promise.all([
-        queryMemory({
-          queryVector: vectors,
-          limit: 3,
-          metadata: {
-            user: socket.user._id,
-          },
-        }),
-        messageModel
-          .find({ chat: messagePayLoad.chat })
-          .sort({ createdAt: -1 })
-          .limit(20)
-          .lean(),
-      ]);
-
-      const stm = chatHistory.map((item) => ({
-        role: item.role,
-        parts: [{ text: item.content }],
-      }));
-
-
-      const ltm = [
-        {
-          role: "user",
-          parts: [
-            {
-              text: `These are some previous messages from the chat, use them to generate a response:\n${memory
-                .map((item) => item.metadata.text)
-                .join("\n")}`,
-            },
-          ],
-        },
-      ];
-
-
-      
-
-      const response = await aiService.generateResponse([...ltm, ...stm]);
-
-      /*
-      const responseMessage = await messageModel.create({
-        chat: messagePayLoad.chat,
-        user: socket.user._id,
-        content: response,
-        role: "model",
-      }); 
-
-      const responseVectors = await aiService.generateVector(response); */
-      const [responseMessage, responseVectors] = await Promise.all([ 
-        messageModel.create({
-          chat: messagePayLoad.chat,
-          user: socket.user._id, 
-          content: response,
-          role: "model",
-        }),
-        aiService.generateVector(response),
-      ]);
-
-      await createMemory({
-        vectors: responseVectors,
-        messageId: responseMessage._id,
-        metadata: {
-          chat: messagePayLoad.chat,
-          user: socket.user._id,
-          text: response,
-        },
-      });
-
-      socket.emit("ai-response", {
-        content: response,
-        chat: messagePayLoad.chat,
-      });
-
-      console.log("AI response sent for chat:", messagePayLoad.chat);
-      } catch (error) {
-        console.error("Socket error:", error);
-        socket.emit("error", { message: error.message });
-      }
+    const message = await messageModel.create({
+      chat: messagePayLoad.chat,
+      user: socket.user._id,
+      content: messagePayLoad.content,
+      role: "user",
     });
 
+    userMessageId = message._id;
+
+    await incrementMessageCount(socket.user);
+
+    const vectors = await aiService.generateVector(messagePayLoad.content);
+
+    const [memory, chatHistory] = await Promise.all([
+      queryMemory({ queryVector: vectors, limit: 3, metadata: { user: socket.user._id } }),
+      messageModel.find({ chat: messagePayLoad.chat }).sort({ createdAt: -1 }).limit(20).lean(),
+    ]);
+
+    const response = await aiService.generateResponse(chatHistory);
+
+    const responseMessage = await messageModel.create({
+      chat: messagePayLoad.chat,
+      user: socket.user._id,
+      content: response,
+      role: "model",
+    });
+
+    socket.emit("ai-response", {
+      content: response,
+      chat: messagePayLoad.chat,
+    });
+
+  } catch (error) {
+    // ===== ERROR HANDLING SHOULD BE HERE =====
+
+    console.error("AI Error:", error);
+
+    // rollback user message if AI failed
+    if (userMessageId) {
+      await messageModel.findByIdAndDelete(userMessageId);
+      await userModel.findByIdAndUpdate(socket.user._id, {
+        $inc: { dailyMessageCount: -1 }
+      });
+    }
+
+    // friendly message (NO DB SAVE)
+    socket.emit("ai-error", {
+      message: "I’m a little busy right now. Please try again shortly so I can assist you better."
+    });
+  }
+});
+
     socket.on("disconnect", () => {
-      console.log("User disconnected:", socket.user?.email);
     });
   });
 

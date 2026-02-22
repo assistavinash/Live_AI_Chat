@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import './ChatInput.css';
+import '../styles/chatInput.css';
 
 export default function ChatInput({
   input,
@@ -82,7 +82,7 @@ export default function ChatInput({
             </div>
           </div>
         </form>
-        <p className="input-footer">ChatGPT can make mistakes. Check important info.</p>
+        <p className="input-footer">Aurora can make mistakes. Check important info.</p>
       </div>
     </div>
   );

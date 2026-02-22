@@ -65,7 +65,7 @@ const chatSlice = createSlice({
     // Update chat title
     updateChatTitle: (state, action) => {
       const { chatId, title } = action.payload;
-      const chat = state.chats.find(c => c.id === chatId);
+      const chat = state.chats.find(c => c.id === chatId || c._id === chatId);
       if (chat) {
         chat.title = title;
       }
@@ -103,6 +103,47 @@ const chatSlice = createSlice({
       state.loading = action.payload;
     },
 
+    // Add system message (limit, error, etc.)
+    addSystemMessage: (state, action) => {
+      const { text, type = 'system', title = '', data = {} } = action.payload;
+      const message = {
+        id: Date.now(),
+        text,
+        sender: 'system',
+        timestamp: new Date().toISOString(),
+        type, // 'limit', 'rate-limit', 'error', etc.
+        title,
+        data
+      };
+
+      state.messages.push(message);
+
+      // Update the message in the chats array
+      const currentChat = state.chats.find(chat => chat.id === state.currentChatId);
+      if (currentChat) {
+        currentChat.messages = state.messages;
+      }
+    },
+
+    // Remove last user message (for rollback on AI errors)
+    removeLastUserMessage: (state) => {
+      if (state.messages.length > 0) {
+        // Find and remove the last user message
+        for (let i = state.messages.length - 1; i >= 0; i--) {
+          if (state.messages[i].sender === 'user') {
+            state.messages.splice(i, 1);
+            break;
+          }
+        }
+
+        // Update the message in the chats array
+        const currentChat = state.chats.find(chat => chat.id === state.currentChatId);
+        if (currentChat) {
+          currentChat.messages = state.messages;
+        }
+      }
+    },
+
     // Reset entire auth state (on logout)
     resetAuthState: (state) => {
       state.chats = [];
@@ -125,6 +166,8 @@ export const {
   setChats,
   setLoading,
   loadMessages,
+  addSystemMessage,
+  removeLastUserMessage,
   resetAuthState
 } = chatSlice.actions;
 

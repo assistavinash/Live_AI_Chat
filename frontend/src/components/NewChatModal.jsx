@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import './NewChatModal.css';
+import '..styles/NewChatModal.css';
 
 export default function NewChatModal({ isOpen, onConfirm, onCancel }) {
   const [title, setTitle] = useState('');

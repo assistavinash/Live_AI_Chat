@@ -6,44 +6,37 @@ export const axiosInstance = axios.create({
   withCredentials: true
 });
 
+// Setup interceptor immediately on module load
+axiosInstance.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // If status is 401 (Unauthorized), user's session has expired or token is invalid
+    if (error.response && error.response.status === 401) {
+      console.warn('Unauthorized - session expired or invalid token');
+      
+      // Clear localStorage
+      localStorage.removeItem('isLoggedIn');
+      localStorage.removeItem('user');
+      
+      // Clear sessionStorage
+      sessionStorage.removeItem('isLoggedIn');
+      sessionStorage.removeItem('user');
+      sessionStorage.removeItem('token');
+      
+      // Redirect to login by reloading with login path
+      window.location.href = '/login';
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
 /**
  * Setup axios interceptor to handle 401 responses
- * When a 401 is received, clear auth data and redirect to login
+ * This function can still be called from components if needed for advanced setup
+ * @deprecated Use axiosInstance directly - interceptor is now initialized on module load
  */
 export const setupAxiosInterceptor = (navigate, dispatch) => {
-  axiosInstance.interceptors.response.use(
-    (response) => response,
-    (error) => {
-      // If status is 401 (Unauthorized), user's session has expired or token is invalid
-      if (error.response && error.response.status === 401) {
-        console.warn('Unauthorized - clearing session and redirecting to login');
-        
-        // Clear localStorage
-        localStorage.removeItem('isLoggedIn');
-        localStorage.removeItem('user');
-        
-        // Clear sessionStorage
-        sessionStorage.removeItem('isLoggedIn');
-        sessionStorage.removeItem('user');
-        sessionStorage.removeItem('token');
-        
-        // If dispatch is available, reset auth state
-        if (dispatch) {
-          try {
-            const { resetAuthState } = require('../redux/slices/chatSlice');
-            dispatch(resetAuthState());
-          } catch (e) {
-            console.error('Error resetting auth state:', e);
-          }
-        }
-        
-        // Redirect to login
-        if (navigate) {
-          navigate('/login', { replace: true });
-        }
-      }
-      
-      return Promise.reject(error);
-    }
-  );
+  // Interceptor is already set up on module load
+  // This function is kept for backwards compatibility
 };

@@ -9,6 +9,10 @@ router.post('/', authMiddleware.authUser, chatController.createChat)
 
 router.get('/', authMiddleware.authUser, chatController.getChats)
 
+router.get('/empty-chat', authMiddleware.authUser, chatController.getEmptyChats)
+
 router.get('/:chatId/messages', authMiddleware.authUser, chatController.getMessages)
+
+router.put('/:chatId/title', authMiddleware.authUser, chatController.updateChatTitle)
 
 module.exports = router;

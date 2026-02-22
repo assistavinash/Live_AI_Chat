@@ -19,6 +19,18 @@ const userSchema = new mongoose.Schema({
     password: {
         type: String,
         required: true
+    },
+    dailyMessageCount: {
+        type: Number,
+        default: 0
+    },
+    lastMessageReset: {
+        type: Date,
+        default: () => new Date()
+    },
+    dailyMessageLimit: {
+        type: Number,
+        default: 20
     }
 }, { timestamps: true });
 
