@@ -2,16 +2,70 @@ const {GoogleGenAI} = require("@google/genai");
 
 const ai = new GoogleGenAI({})
 
+// Request tracking - stores requests per user per day
+const dailyRequestTracker = {};
+const REQUEST_LIMIT = 20;
+const MAX_RETRIES = 3;
+const BASE_RETRY_DELAY = 1000; // 1 second
 
+// Get today's date key
+function getTodayKey() {
+    const date = new Date();
+    return date.toISOString().split('T')[0];
+}
 
-async function generateResponse(content) {
+// Track and check request limit
+function canMakeRequest(userId) {
+    const today = getTodayKey();
+    const key = `${userId}-${today}`;
+    
+    if (!dailyRequestTracker[key]) {
+        dailyRequestTracker[key] = 0;
+    }
+    
+    return dailyRequestTracker[key] < REQUEST_LIMIT;
+}
 
-    const response = await ai.models.generateContent({
-         model: "gemini-3-flash-preview",
-         contents: content,
-            config: {
-                temperature: 0.7,
-                systemInstruction:`<system_instruction>
+// Increment request count
+function incrementRequestCount(userId) {
+    const today = getTodayKey();
+    const key = `${userId}-${today}`;
+    dailyRequestTracker[key] = (dailyRequestTracker[key] || 0) + 1;
+    return dailyRequestTracker[key];
+}
+
+// Get remaining requests
+function getRemainingRequests(userId) {
+    const today = getTodayKey();
+    const key = `${userId}-${today}`;
+    const used = dailyRequestTracker[key] || 0;
+    return REQUEST_LIMIT - used;
+}
+
+// Exponential backoff with retry
+async function retryWithBackoff(fn, retries = MAX_RETRIES, delay = BASE_RETRY_DELAY) {
+    try {
+        return await fn();
+    } catch (error) {
+        if (error.status === 429 && retries > 0) {
+            console.log(`Rate limited. Retrying in ${delay}ms... Retries left: ${retries}`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return retryWithBackoff(fn, retries - 1, delay * 2);
+        }
+        throw error;
+    }
+}
+
+async function generateResponse(content, userId) {
+    try {
+        const response = await retryWithBackoff(async () => {
+            return await ai.models.generateContent({
+                model: "gemini-3-flash-preview",
+                contents: content,
+                config: {
+                    temperature: 0.7,
+                    systemInstruction:`<system_instruction>
+
 <identity>
     Tumhara naam <name>Aurora</name> hai.
     Tum ek smart, friendly aur reliable AI assistant ho.
@@ -21,84 +75,88 @@ async function generateResponse(content) {
 <persona>
     Tumhara tone warm, natural aur supportive hai.
     Tum ek knowledgeable dost ki tarah samjhate ho — na overly playful, na robotic.
-    Har reply practical aur useful hona chahiye.
 </persona>
 
 <communication_style>
     • Hinglish use karo (natural Hindi + English mix).
-    • Simple, conversational language — heavy jargon avoid karo.
-    • Short paragraphs likho (max 2 lines).
-    • Long walls of text kabhi mat likho.
-    • Jab possible ho, bullet points ya sections use karo.
-    • Emojis sirf jab naturally fit ho (overuse nahi).
+    • Simple aur direct language use karo.
+    • Extra explanation tab tak mat do jab tak user na maange.
 </communication_style>
 
-<response_format_rules>
-    Har answer ko readable chat format me do:
+<response_length_rule>
+    ⚠️ Default behaviour:
 
-    1. Short opening line (context acknowledge karo).
-    2. Clear explanation (structured form me).
-    3. Agar technical hai → steps ya bullets.
-    4. Code ho toh clean block me do.
-    5. End me optional helpful follow-up.
+    • Har reply MAX 2 lines ka hoga.
+    • Sirf direct answer dena hai — no extra detail.
+    • Examples, steps, ya explanation include nahi karne.
 
-    ❌ 8–10 line ka single paragraph kabhi mat likho.
-    ❌ Unnecessary storytelling avoid karo.
-</response_format_rules>
+    ✅ Agar user explicitly bole:
+    "explain", "detail", "samjhao", "kaise", "thoda sahi se batao"
+
+    → Tabhi detailed answer do.
+</response_length_rule>
 
 <behavior_rules>
-    • Helpful, respectful aur accurate raho.
-    • Agar question unclear ho → clarification poochho.
-    • Complex topic → step-by-step break karo.
-    • Repeat mat karo jo already bola ja chuka hai.
-    • Answer concise rakho but incomplete nahi.
+    • Concise raho — unnecessary text avoid karo.
+    • Jab tak user na kahe, teaching mode activate mat karo.
+    • Repeat ya filler lines mat likho.
 </behavior_rules>
 
 <technical_mode>
-    Jab coding ya development topic ho:
-    • Direct solution do — theory overload nahi.
-    • Practical examples pe focus karo.
-    • Production-grade approach suggest karo.
-    • Explain WHY, not just WHAT.
+    Default: sirf fix ya answer.
+    Detail tabhi jab user specifically maange.
 </technical_mode>
-
-<emotional_intelligence>
-    Agar user stuck ya frustrated lage:
-    → Reassure karo, phir solution do.
-
-    Example:
-    "Tension mat lo, ye common issue hai — chalo fix karte hain."
-</emotional_intelligence>
 
 <restrictions>
     • Kabhi claim mat karo ki tum human ho.
-    • Fake ya assumed information mat do.
-    • Sensitive ya offensive content avoid karo.
-    • Apne aap ko over-personify mat karo.
+    • Fake ya assumed info mat do.
+    • Over-explaining strictly avoid karo.
 </restrictions>
 
 <goal>
-    Har interaction ka feel:
-    "Clear guidance, fast help, zero confusion."
+    Fast answers. Minimal text. Zero bakbak.
 </goal>
 
-
 </system_instruction>`
-
-            }
-    });
-
-    return response.text;
+                }
+            });
+        });
+        return response.text;
+    } catch (error) {
+        if (error.status === 429) {
+            throw { code: 'QUOTA_EXCEEDED', message: 'Daily limit reached, please try tomorrow ✨', status: 429 };
+        }
+        if (error.status === 503) {
+            throw { code: 'SERVICE_BUSY', message: 'Aurora is currently busy, please try in a few seconds', status: 503 };
+        }
+        throw error;
+    }
 }
 
 async function generateVector(content) {
-    const response = await ai.models.embedContent({
-        model: "gemini-embedding-001",
-        contents: content,
-        config:{
-            outputDimensionality:768
+    try {
+        const response = await retryWithBackoff(async () => {
+            return await ai.models.embedContent({
+                model: "gemini-embedding-001",
+                contents: content,
+                config: {
+                    outputDimensionality:768}
+            });
+        });
+        return response.embeddings[0].values;
+    } catch (error) {
+        if (error.status === 429) {
+            throw { code: 'QUOTA_EXCEEDED', message: 'Daily limit reached, please try tomorrow ✨', status: 429 };
         }
-    })
-    return response.embeddings[0].values;
+        console.log('Vector generation error:', error.message);
+        return null;
+    }
 }
-module.exports = { generateResponse, generateVector };
+
+module.exports = { 
+    generateResponse, 
+    generateVector,
+    canMakeRequest,
+    incrementRequestCount,
+    getRemainingRequests
+};

@@ -5,11 +5,7 @@ const userModel = require("../models/user.model");
 const aiService = require("../services/ai.service");
 const messageModel = require("../models/message.model");
 const { createMemory, queryMemory } = require("../services/vector.service");
-const {
-  checkAndResetDailyLimit,
-  incrementMessageCount,
-  getResetMessage
-} = require("../utils/messageLimitUtils");
+
 
 function initSocketServer(httpServer) {
   const io = new Server(httpServer, {
@@ -17,7 +13,7 @@ function initSocketServer(httpServer) {
       origin: "http://localhost:5173",
       credentials: true
     }
-  });
+ });
 
   io.use(async (socket, next) => {
     const cookies = cookie.parse(socket.handshake.headers?.cookie || "");
@@ -36,77 +32,124 @@ function initSocketServer(httpServer) {
   });
 
   io.on("connection", (socket) => {
-
     socket.on("ai-message", async (messagePayLoad) => {
-      let userMessageId = null;
-
       try {
-        // Validate that chat ID is provided
-        if (!messagePayLoad.chat) {
-      socket.emit("error", { message: "Chat ID is required" });
-      return;
-    }
+        const userId = socket.user._id.toString();
+        
+        // STEP 1: CHECK REQUEST LIMIT BEFORE MAKING API CALL
+        if (!aiService.canMakeRequest(userId)) {
+          const remaining = aiService.getRemainingRequests(userId);
+          socket.emit("limit-reached", { 
+            code: 'DAILY_LIMIT',
+            message: 'Daily limit reached, please try tomorrow ✨',
+            remaining: remaining
+          });
+          return;
+        }
 
-    const limitCheck = await checkAndResetDailyLimit(socket.user);
-    if (limitCheck.isLimitReached) {
-      const resetMessage = getResetMessage(limitCheck.timeUntilReset);
-      socket.emit("limit-reached", resetMessage);
-      return;
-    }
+        // STEP 2: GET CHAT HISTORY WITHOUT SAVING USER MESSAGE YET
+        const vectors = await aiService.generateVector(messagePayLoad.content); 
 
-    const message = await messageModel.create({
-      chat: messagePayLoad.chat,
-      user: socket.user._id,
-      content: messagePayLoad.content,
-      role: "user",
-    });
+        const [memory, chatHistory] = await Promise.all([
+          queryMemory({
+            queryVector: vectors,
+            limit: 3,
+            metadata: {
+              user: socket.user._id,
+            },
+          }),
+          messageModel
+            .find({ chat: messagePayLoad.chat })
+            .sort({ createdAt: -1 })
+            .limit(20)
+            .lean(),
+        ]);
 
-    userMessageId = message._id;
+        const stm = chatHistory.map((item) => ({
+          role: item.role,
+          parts: [{ text: item.content }],
+        }));
 
-    await incrementMessageCount(socket.user);
+        const ltm = [
+          {
+            role: "user",
+            parts: [
+              {
+                text: `These are some previous messages from the chat, use them to generate a response:\n${memory
+                  .map((item) => item.metadata.text)
+                  .join("\n")}`,
+              },
+            ],
+          },
+        ];
 
-    const vectors = await aiService.generateVector(messagePayLoad.content);
+        // STEP 3: GENERATE AI RESPONSE FIRST
+        const response = await aiService.generateResponse([...ltm, ...stm], userId);
+        
+        // STEP 4: CHECK FOR VALID RESPONSE
+        if (!response || !response.trim()) {
+          throw { code: 'EMPTY_RESPONSE', message: 'Empty response from AI' };
+        }
 
-    const [memory, chatHistory] = await Promise.all([
-      queryMemory({ queryVector: vectors, limit: 3, metadata: { user: socket.user._id } }),
-      messageModel.find({ chat: messagePayLoad.chat }).sort({ createdAt: -1 }).limit(20).lean(),
-    ]);
+        // STEP 5: IF SUCCESS → SAVE BOTH MESSAGES
+        const [userMessage, responseMessage, responseVectors] = await Promise.all([
+          messageModel.create({
+            chat: messagePayLoad.chat,
+            user: socket.user._id,
+            content: messagePayLoad.content,
+            role: "user",
+          }),
+          messageModel.create({
+            chat: messagePayLoad.chat,
+            user: socket.user._id, 
+            content: response,
+            role: "model",
+          }),
+          aiService.generateVector(response),
+        ]);
 
-    const response = await aiService.generateResponse(chatHistory);
+        // Save memory (safe to fail silently)
+        await createMemory({
+          vectors: responseVectors,
+          messageId: responseMessage._id,
+          metadata: {
+            chat: messagePayLoad.chat,
+            user: socket.user._id,
+            text: response,
+          },
+        }).catch(() => {});
 
-    const responseMessage = await messageModel.create({
-      chat: messagePayLoad.chat,
-      user: socket.user._id,
-      content: response,
-      role: "model",
-    });
+        // Increment request count only on successful response
+        aiService.incrementRequestCount(userId);
 
-    socket.emit("ai-response", {
-      content: response,
-      chat: messagePayLoad.chat,
-    });
-
-  } catch (error) {
-    // ===== ERROR HANDLING SHOULD BE HERE =====
-
-    console.error("AI Error:", error);
-
-    // rollback user message if AI failed
-    if (userMessageId) {
-      await messageModel.findByIdAndDelete(userMessageId);
-      await userModel.findByIdAndUpdate(socket.user._id, {
-        $inc: { dailyMessageCount: -1 }
-      });
-    }
-
-    // friendly message (NO DB SAVE)
-    socket.emit("ai-error", {
-      message: "I’m a little busy right now. Please try again shortly so I can assist you better."
-    });
-  }
-});
-
-    socket.on("disconnect", () => {
+        const remaining = aiService.getRemainingRequests(userId);
+        socket.emit("ai-response", {
+          content: response,
+          chat: messagePayLoad.chat,
+          remaining: remaining
+        });
+      } catch (error) {
+        console.log("AI Generation Error:", error);
+        
+        // IF ERROR → SAVE NOTHING, EMIT ERROR EVENT
+        // Handle specific error codes
+        if (error.code === 'QUOTA_EXCEEDED') {
+          socket.emit("limit-reached", { 
+            code: error.code,
+            message: error.message
+          });
+        } else if (error.code === 'SERVICE_BUSY') {
+          socket.emit("ai-response-failed", { 
+            code: error.code,
+            message: error.message
+          });
+        } else {
+          socket.emit("ai-response-failed", { 
+            code: "AI_RESPONSE_FAILED",
+            message: error.message || 'Something went wrong, please try again'
+          });
+        }
+      }
     });
   });
 

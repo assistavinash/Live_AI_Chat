@@ -112,11 +112,30 @@ export default function Home() {
       dispatch(setLoading(false));
     });
 
+    // AI response failed listener (quota exceeded, service busy, etc)
+    socket.on('ai-response-failed', (data) => {
+      // Handle different error types
+      const errorMessages = {
+        'QUOTA_EXCEEDED': '🚫 Daily limit reached! Please try tomorrow ✨',
+        'SERVICE_BUSY': '⏳ Aurora is currently busy, please try in a few seconds',
+        'AI_RESPONSE_FAILED': data.message || '❌ Something went wrong, please try again'
+      };
+      
+      dispatch(addSystemMessage({
+        text: errorMessages[data.code] || data.message || 'Error occurred',
+        type: 'error',
+        title: 'Error',
+        data: {}
+      }));
+      dispatch(setLoading(false));
+    });
+
     // Cleanup: remove listener on unmount
     return () => {
       socket.off('ai-response');
       socket.off('limit-reached');
       socket.off('rate-limit');
+      socket.off('ai-response-failed');
     };
   }, [dispatch]);
 
