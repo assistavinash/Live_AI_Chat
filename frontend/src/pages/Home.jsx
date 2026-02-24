@@ -63,7 +63,7 @@ export default function Home() {
     // Only create socket if it doesn't exist
     if (!socketRef.current) {
 
-      socketRef.current = io('http://localhost:3000', {
+      socketRef.current = io('https://live-ai-chat.onrender.com', {
         withCredentials: true,
         reconnection: true,
         reconnectionDelay: 1000,

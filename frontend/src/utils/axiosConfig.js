@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Create axios instance with default config
 export const axiosInstance = axios.create({
-  baseURL: 'http://localhost:3000',
+  baseURL: 'https://live-ai-chat.onrender.com',
   withCredentials: true
 });
 
